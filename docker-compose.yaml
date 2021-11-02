@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  airflow:
+    build:
+      context: .
+      dockerfile: DOCKERFILE
+    container_name: airflow
+    environment:
+      KAGGLE_USERNAME: "samuelknoch"
+      KAGGLE_KEY : "ce1bd85199cc69592eb7026b6da7b43d"
+    ports:
+      - 8080:8080
+    networks:
+      - bigdatanet
+  
+  spark:
+    image: marcelmittelstaedt/spark_base:latest
+    container_name: hadoop
+    ports:
+      - 8088:8088 
+      - 9870:9870 
+      - 9864:9864 
+      - 10000:10000
+      - 8032:8032 
+      - 8030:8030 
+      - 8031:8031 
+      - 9000:9000 
+      - 8888:8888
+    networks:
+      - bigdatanet
+
+networks:
+  bigdatanet:
+    name: bigdatanet

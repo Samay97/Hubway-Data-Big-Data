@@ -1,0 +1,11 @@
+FROM marcelmittelstaedt/airflow:latest
+
+ADD ./ /home/airflow/folder/
+
+# Expose Airflow Web Service Port
+EXPOSE 8080
+
+# Start startup Script
+ENTRYPOINT ["/startup.sh"]
+
+
