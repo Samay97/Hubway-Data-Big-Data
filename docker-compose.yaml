@@ -9,6 +9,8 @@ services:
     environment:
       KAGGLE_USERNAME: "samuelknoch"
       KAGGLE_KEY : "ce1bd85199cc69592eb7026b6da7b43d"
+    volumes:
+            - ./:/home/airflow/tmp #mountfiles for development
     ports:
       - 8080:8080
     networks:
