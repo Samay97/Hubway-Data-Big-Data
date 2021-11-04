@@ -1,6 +1,8 @@
 FROM marcelmittelstaedt/airflow:latest
 
-ADD ./ /home/airflow/tmp/
+ADD ./kaggle.json /home/airflow/.kaggle/kaggle.json
+
+ADD ./src /home/airflow/airflow/dags/
 
 # Expose Airflow Web Service Port
 EXPOSE 8080
