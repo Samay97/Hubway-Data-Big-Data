@@ -13,6 +13,7 @@ from airflow.operators.python_operator import PythonOperator
 from Operators.download_operator import DownloadOperator
 from Operators.filesystem_operator import CreateDirectoryOperator, ClearDirectoryOperator, RemoveFileOperator
 from Operators.hdfs_operations import HdfsMkdirFileOperator, HdfsPutFileOperator
+from Operators.csv_operator import CSVOptimizingOperator
 
 # Sql commands
 from SQL_Commands.create_table import hiveSQL_create_table_hubway_data
@@ -88,7 +89,7 @@ create_hdfs_hubway_data_partition_dir_final = HdfsMkdirFileOperator(
 
 create_hdfs_hubway_data_partition_dir_raw.set_upstream(get_downloaded_filenames)
 
-hdfs_put_hubway_data = HdfsPutFileOperator(
+hdfs_put_hubway_data_raw = HdfsPutFileOperator(
     task_id='upload-hubway-data-to-hdfs-raw',
     local_path='{}/{}'.format(download_path, download_folder),
     remote_path=remote_path_raw,
@@ -97,14 +98,45 @@ hdfs_put_hubway_data = HdfsPutFileOperator(
     dag=dag,
 )
 
-hdfs_put_hubway_data.set_upstream(get_downloaded_filenames)
+hdfs_put_hubway_data_raw.set_upstream(get_downloaded_filenames)
+
+
+csv_optimizing = CSVOptimizingOperator(
+    task_id='upload-hubway-data-to-hdfs-raw',
+    local_input_path='{}/{}'.format(download_path, download_folder),
+    local_output_path='{}/{}'.format(download_path, download_folder),
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+    dag=dag,
+)
+
+csv_optimizing.set_upstream(get_downloaded_filenames)
+
+
+# TODO get final files from donwload folder and upload them
+hdfs_put_hubway_data_final = HdfsPutFileOperator(
+    task_id='upload-hubway-data-to-hdfs-final',
+    local_path='{}/{}'.format(download_path, download_folder),
+    remote_path=remote_path_raw,
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+    hdfs_conn_id='hdfs',
+    dag=dag,
+)
+
+hdfs_put_hubway_data_final.set_upstream(get_downloaded_filenames)
 
 waiting_operator = DummyOperator(
     task_id='Dummy_Task_Wait',
     dag=dag
 )
 
+waiting_operator2 = DummyOperator(
+    task_id='Dummy_Task_Wait 2',
+    dag=dag
+)
+
 create_local_import_dir >> clear_local_import_dir >> download_dataset >> remove_zip_file_from_download >> get_downloaded_filenames
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_final >> waiting_operator
-waiting_operator >> hdfs_put_hubway_data
+get_downloaded_filenames >> csv_optimizing >> waiting_operator2
+waiting_operator >> hdfs_put_hubway_data_raw
+waiting_operator2 >> hdfs_put_hubway_data_final
