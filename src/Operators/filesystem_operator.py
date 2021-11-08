@@ -92,6 +92,7 @@ class ClearDirectoryOperator(BaseOperator):
 
         self.log.info("ClearDirectoryOperator done.")
 
+
 class RemoveFileOperator(BaseOperator):
     
     @apply_defaults

@@ -4,6 +4,13 @@ ADD ./kaggle.json /home/airflow/.kaggle/kaggle.json
 
 ADD ./src /home/airflow/airflow/dags/
 
+ADD ./requirements.txt /home/tmp/python/
+
+WORKDIR /home/tmp/python/
+RUN pip3 install -r requirements.txt
+
+WORKDIR /
+
 # Expose Airflow Web Service Port
 EXPOSE 8080
 

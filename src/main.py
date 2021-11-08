@@ -1,23 +1,30 @@
 from datetime import datetime
 from airflow import DAG
 
+# Config
+from config import *
+
+# Helpers
+from Helper.file_helper import collect_all_downloaded_files
+
 # Operators
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
 from Operators.download_operator import DownloadOperator
 from Operators.filesystem_operator import CreateDirectoryOperator, ClearDirectoryOperator, RemoveFileOperator
-
-from airflow.operators.hdfs_operations import HdfsPutFileOperator, HdfsGetFileOperator, HdfsMkdirFileOperator
+from Operators.hdfs_operations import HdfsMkdirFileOperator, HdfsPutFileOperator
 
 # Sql commands
 from SQL_Commands.create_table import hiveSQL_create_table_hubway_data
 
-download_path = '/home/airflow'
-download_folder = 'hubway_data'
+
 
 args = {
     'owner': 'airflow'
 }
 
-dag = DAG('Hubway-Data',
+dag = DAG(
+        'Hubway-Data',
         default_args=args,
         description='Hubway-Data ...',
         schedule_interval='0 18 * * *',
@@ -54,21 +61,50 @@ remove_zip_file_from_download = RemoveFileOperator(
     dag=dag
 )
 
-create_hdfs_hubway_data_partition_dir = HdfsMkdirFileOperator(
-    task_id='mkdir-hdfs-hubway-data-dir',
-    directory='/user/hadoop/hubway_data/{{ macros.ds_format(ds, "%Y-%m-%d", "%Y")}}/{{ macros.ds_format(ds, "%Y-%m-%d", "%m")}}/{{ macros.ds_format(ds, "%Y-%m-%d", "%d")}}',
+get_downloaded_filenames = PythonOperator(
+    task_id='get-downloaded-filenames',
+    provide_context=True,
+    python_callable=collect_all_downloaded_files
+)
+
+create_hdfs_hubway_data_partition_dir_raw = HdfsMkdirFileOperator(
+    task_id='mkdir-hdfs-hubway-data-dir-raw',
+    directory=remote_path_raw,
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
     hdfs_conn_id='hdfs',
     dag=dag,
 )
 
-#hdfs_put_title_ratings = HdfsPutFileOperator(
-#    task_id='upload-hubway-data-to-hdfs',
-#    local_file='/home/airflow/imdb/title.ratings_{{ ds }}.tsv',
-#    remote_file='/user/hadoop/imdb/title_ratings/{{ macros.ds_format(ds, "%Y-%m-%d", "%Y")}}/{{ macros.ds_format(ds, "%Y-%m-%d", "%m")}}/{{ macros.ds_format(ds, "%Y-%m-%d", "%d")}}/title.ratings_{{ ds }}.tsv',
-#    hdfs_conn_id='hdfs',
-#    dag=dag,
-#)
+create_hdfs_hubway_data_partition_dir_raw.set_upstream(get_downloaded_filenames)
 
-create_local_import_dir >> clear_local_import_dir 
-clear_local_import_dir >> download_dataset >> remove_zip_file_from_download
-remove_zip_file_from_download >> create_hdfs_hubway_data_partition_dir
+
+create_hdfs_hubway_data_partition_dir_final = HdfsMkdirFileOperator(
+    task_id='mkdir-hdfs-hubway-data-dir-final',
+    directory=remote_path_final,
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+    hdfs_conn_id='hdfs',
+    dag=dag,
+)
+
+create_hdfs_hubway_data_partition_dir_raw.set_upstream(get_downloaded_filenames)
+
+hdfs_put_hubway_data = HdfsPutFileOperator(
+    task_id='upload-hubway-data-to-hdfs-raw',
+    local_path='{}/{}'.format(download_path, download_folder),
+    remote_path=remote_path_raw,
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+    hdfs_conn_id='hdfs',
+    dag=dag,
+)
+
+hdfs_put_hubway_data.set_upstream(get_downloaded_filenames)
+
+waiting_operator = DummyOperator(
+    task_id='Dummy_Task_Wait',
+    dag=dag
+)
+
+create_local_import_dir >> clear_local_import_dir >> download_dataset >> remove_zip_file_from_download >> get_downloaded_filenames
+get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> waiting_operator
+get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_final >> waiting_operator
+waiting_operator >> hdfs_put_hubway_data
