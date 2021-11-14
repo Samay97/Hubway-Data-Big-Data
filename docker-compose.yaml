@@ -26,6 +26,7 @@ services:
       - 8031:8031 
       - 9000:9000 
       - 8888:8888
+      - 4040:4040
     networks:
       - bigdatanet
 

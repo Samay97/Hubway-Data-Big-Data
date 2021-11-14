@@ -13,6 +13,40 @@ from Hook.hdfs_hook import HdfsHook
 from Helper.file_helper import get_folder_to_create
 
 
+class HdfsBasicMkdirFileOperator(BaseOperator):
+
+    template_fields = ('directory', 'hdfs_conn_id')
+    ui_color = '#fcdb03'
+
+    @apply_defaults
+    def __init__(
+            self,
+            directory,
+            hdfs_conn_id,
+            *args, **kwargs):
+        """
+        :param directory: directory, which should be created
+        :type directory: string
+        :param hdfs_conn_id: airflow connection id of HDFS connection to be used
+        :type hdfs_conn_id: string
+        """
+
+        super(HdfsBasicMkdirFileOperator, self).__init__(*args, **kwargs)
+        self.directory = directory
+        self.hdfs_conn_id = hdfs_conn_id
+
+    def execute(self, context):
+
+        self.log.info("HdfsBasicMkdirFileOperator execution started")
+        
+        self.log.info("Mkdir HDFS directory'" + self.directory + "'.")
+        
+        hh = HdfsHook(hdfs_conn_id=self.hdfs_conn_id)
+        hh.mkdir(self.directory)
+
+        self.log.info("HdfsMkdirFileOperator done")
+
+
 class HdfsMkdirFileOperator(BaseOperator):
 
     template_fields = ('directory', 'hdfs_conn_id', 'file_names')
