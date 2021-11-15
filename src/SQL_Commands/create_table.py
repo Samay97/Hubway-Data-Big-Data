@@ -10,7 +10,6 @@ CREATE EXTERNAL TABLE IF NOT EXISTS hubway_data(
 	tripdistance FLOAT,	
     age DECIMAL(2,0),
 	timeslot_1 DECIMAL(1,0),
-	timeslot_1 DECIMAL(1,0),
 	timeslot_2 DECIMAL(1,0),
 	timeslot_3 DECIMAL(1,0),
 	timeslot_4 DECIMAL(1,0)

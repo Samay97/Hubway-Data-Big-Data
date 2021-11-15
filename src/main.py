@@ -18,7 +18,8 @@ from Operators.filesystem_operator import (ClearDirectoryOperator,
                                            RemoveFileOperator)
 from Operators.hdfs_operations import (HdfsBasicMkdirFileOperator,
                                        HdfsMkdirFileOperator,
-                                       HdfsPutFileOperator)
+                                       HdfsPutFileOperator,
+                                       HdfsGetCSVFileOperator)
 from Operators.hive_operator import HiveUploadOperator
 from SQL_Commands.create_table import \
     hiveSQL_create_table_hubway_data_optimized
@@ -58,14 +59,14 @@ create_local_import_dir = CreateDirectoryOperator(
     task_id='create_import_dir',
     path=download_path,
     directory=download_folder,
-    dag=dag,
+    dag=dag
 )
 
 clear_local_import_dir = ClearDirectoryOperator(
     task_id='clear_import_dir',
     directory='{}/{}'.format(download_path, download_folder),
     pattern='*',
-    dag=dag,
+    dag=dag
 )
 
 download_dataset = DownloadOperator(
@@ -93,7 +94,7 @@ create_hdfs_hubway_data_partition_dir_raw = HdfsMkdirFileOperator(
     directory=remote_path_raw,
     file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
     hdfs_conn_id=hdfs_conn_id,
-    dag=dag,
+    dag=dag
 )
 
 create_hdfs_hubway_data_partition_dir_raw.set_upstream(get_downloaded_filenames)
@@ -104,7 +105,7 @@ create_hdfs_hubway_data_partition_dir_final = HdfsMkdirFileOperator(
     directory=remote_path_final,
     file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
     hdfs_conn_id=hdfs_conn_id,
-    dag=dag,
+    dag=dag
 )
 
 create_hdfs_hubway_data_partition_dir_final.set_upstream(get_downloaded_filenames)
@@ -114,7 +115,14 @@ create_hdfs_hubway_data_partition_dir_hiveSQL = HdfsBasicMkdirFileOperator(
     task_id='mkdir-hdfs-hubway-data-dir-hiveSQL',
     directory=remote_path_hivesql,
     hdfs_conn_id=hdfs_conn_id,
-    dag=dag,
+    dag=dag
+)
+
+create_hdfs_hubway_data_partition_dir_kpis = HdfsBasicMkdirFileOperator(
+    task_id='mkdir-hdfs-hubway-data-dir-kpis',
+    directory=remote_path_kpis,
+    hdfs_conn_id=hdfs_conn_id,
+    dag=dag
 )
 
 hdfs_put_hubway_data_raw = HdfsPutFileOperator(
@@ -123,7 +131,7 @@ hdfs_put_hubway_data_raw = HdfsPutFileOperator(
     remote_path=remote_path_raw,
     file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
     hdfs_conn_id=hdfs_conn_id,
-    dag=dag,
+    dag=dag
 )
 
 csv_optimize = SparkSubmitOperator(
@@ -205,10 +213,39 @@ upload_to_hive_database = HiveUploadOperator(
     dag=dag
 )
 
-hive_get_avg_trip_duration = HiveOperator(
-    task_id='hiveSQL_select_AVG_trip_duration',
-    hql=hiveSQL_select_AVG_trip_duration,
-    hive_cli_conn_id='beeline',
+calculate_kpis = SparkSubmitOperator(
+        task_id='pyspark_calculate_kpis',
+        conn_id='spark',
+        application='/home/airflow/airflow/dags/PySpark/calculate_kpis.py',
+        total_executor_cores='4',
+        executor_cores='2',
+        executor_memory='6g',
+        num_executors='2',
+        name='calculate_kpis',
+        verbose=True,
+        application_args=['--filenames', "{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+        dag=dag
+)
+
+get_calculated_kpis = HdfsGetCSVFileOperator(
+    task_id='get_calculated_kpis',
+    remote_file='{}{}'.format(remote_path_kpis, kpis_file_name),
+    local_file='{}{}/{}'.format(local_path_kpis, local_kpis_folder, kpis_file_name),
+    hdfs_conn_id=hdfs_conn_id,
+    dag=dag
+)
+
+create_local_kpis_dir = CreateDirectoryOperator(
+    task_id='create_kpis_dir',
+    path=local_path_kpis,
+    directory=local_kpis_folder,
+    dag=dag
+)
+
+clear_local_kpis_dir = ClearDirectoryOperator(
+    task_id='clear_kpis_dir',
+    directory='{}{}'.format(local_path_kpis, local_kpis_folder),
+    pattern='*',
     dag=dag
 )
 
@@ -217,4 +254,10 @@ download_dataset >> remove_zip_file_from_download
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> hdfs_put_hubway_data_raw >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_final >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_hiveSQL >> create_HiveTable_hubway_data >> waiting_operator_two
-waiting_operator >> csv_optimize >> waiting_operator_two >> upload_to_hive_database >> hive_get_avg_trip_duration
+get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_kpis >> waiting_operator
+waiting_operator >> csv_optimize >> waiting_operator_two
+waiting_operator_two >> calculate_kpis >> waiting_operator_three
+waiting_operator_two >> create_local_kpis_dir >> clear_local_kpis_dir >> waiting_operator_three
+waiting_operator_three >> get_calculated_kpis
+# to be fixed 
+upload_to_hive_database

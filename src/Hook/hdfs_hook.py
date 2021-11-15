@@ -1,7 +1,9 @@
+import io
+
+import pyarrow as pa
 from airflow.exceptions import AirflowException
 from airflow.hooks.base_hook import BaseHook
-import pyarrow as pa
-import io
+
 
 class HdfsHook(BaseHook):
 
@@ -54,6 +56,18 @@ class HdfsHook(BaseHook):
         conn.download(remote_file, out_buf)
         with open(local_file, "wb") as outfile:
             outfile.write(out_buf.getbuffer())
+
+    def getParquetFile(self, remote_file, local_file):
+        conn = self.get_conn()
+        files = conn.ls(remote_file)
+        for file in files:
+            if file.endswith('.csv'):
+                out_buf = io.BytesIO()
+                conn.download(file, out_buf)
+                print('Donwload: ' + file)
+                with open(local_file, "wb") as outfile:
+                    outfile.write(out_buf.getbuffer())
+                return
 
     def mkdir(self, directory):
         """

@@ -30,6 +30,11 @@ def distanceInKmBetweenEarthCoordinates(lat1, lon1, lat2, lon2):
     https://stackoverflow.com/questions/365826/calculate-distance-between-2-gps-coordinates
     """
     try:
+        lat1 = float(lat1)
+        lon1 = float(lon1)
+        lat2 = float(lat2)
+        lon2 = float(lon2)
+
         earthRadiusKm = 6371
         dLat = degreesToRadians(lat2-lat1)
         dLon = degreesToRadians(lon2-lon1)
@@ -40,6 +45,9 @@ def distanceInKmBetweenEarthCoordinates(lat1, lon1, lat2, lon2):
         return round(earthRadiusKm * c, 3)
     except TypeError:
         # Case no Station is set
+        return 0
+    except ValueError:
+        # catch float errors
         return 0
 
 def get_age(birth_year):
