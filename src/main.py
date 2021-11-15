@@ -3,6 +3,7 @@ from datetime import datetime
 from sys import path
 
 from airflow import DAG
+from airflow.configuration import get
 from airflow.contrib.operators.spark_submit_operator import SparkSubmitOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.hive_operator import HiveOperator
@@ -22,6 +23,7 @@ from Operators.hive_operator import HiveUploadOperator
 from SQL_Commands.create_table import \
     hiveSQL_create_table_hubway_data_optimized
 from SQL_Commands.insert_to_table import hiveSQL_add_partition_hubway_data
+from SQL_Commands.select_commands import hiveSQL_select_AVG_trip_duration
 
 args = {
     'owner': 'airflow'
@@ -44,6 +46,11 @@ waiting_operator = DummyOperator(
 
 waiting_operator_two = DummyOperator(
     task_id='Dummy_Task_Wait_two',
+    dag=dag
+)
+
+waiting_operator_three = DummyOperator(
+    task_id='Dummy_Task_Wait_three',
     dag=dag
 )
 
@@ -169,28 +176,45 @@ create_HiveTable_hubway_data = HiveOperator(
 
 
 # TODO: Don´t know how to get dynmaic HiveOperators with {{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}
-last_submit = None
-for x in ['201512', '201506', '201705', '201702', '201703', '201712', '201709', '201710', '201504', '201606', '201708',
-'201507', '201609', '201508', '201605', '201704', '201505', '201706', '201701', '201601', '201603', '201608', '201510',
-'201602', '201509', '201707', '201607', '201604', '201502', '201511', '201503', '201610', '201711', '201501', '201611']:
-    upload_to_hive_database = HiveOperator(
-        task_id='upload_to_hive_sql_{}'.format(x),
-        hql=hiveSQL_add_partition_hubway_data.format(path=remote_path_final, folder=x),
-        hive_cli_conn_id='beeline',
-        dag=dag
-    )
+# last_submit = None
+# for x in ['201512', '201506', '201705', '201702', '201703', '201712', '201709', '201710', '201504', '201606', '201708',
+# '201507', '201609', '201508', '201605', '201704', '201505', '201706', '201701', '201601', '201603', '201608', '201510',
+# '201602', '201509', '201707', '201607', '201604', '201502', '201511', '201503', '201610', '201711', '201501', '201611']:
+#     upload_to_hive_database = HiveOperator(
+#         task_id='upload_to_hive_sql_{}'.format(x),
+#         hql=hiveSQL_add_partition_hubway_data + " LOCATION '{}{}/hubway-tripdata.csv'; ".format(remote_path_final, x),
+#         hive_cli_conn_id='beeline',
+#         dag=dag
+#     )
 
-    if last_submit is not None:
-        upload_to_hive_database.set_upstream(last_submit)
-    else:
-        upload_to_hive_database.set_upstream(waiting_operator_two)
-    last_submit = upload_to_hive_database
+#     if last_submit is not None:
+#         upload_to_hive_database.set_upstream(last_submit)
+#     else:
+#         upload_to_hive_database.set_upstream(waiting_operator_two)
+    
+#     upload_to_hive_database.set_downstream(waiting_operator_three)
+#     last_submit = upload_to_hive_database
 
+
+upload_to_hive_database = HiveUploadOperator(
+    task_id='upload_to_hive_database',
+    hql=hiveSQL_add_partition_hubway_data,
+    file_names=["{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}"],
+    remote_path_final=remote_path_final,
+    hive_cli_conn_id='beeline',
+    dag=dag
+)
+
+hive_get_avg_trip_duration = HiveOperator(
+    task_id='hiveSQL_select_AVG_trip_duration',
+    hql=hiveSQL_select_AVG_trip_duration,
+    hive_cli_conn_id='beeline',
+    dag=dag
+)
 
 create_local_import_dir >> clear_local_import_dir >> download_dataset >> get_downloaded_filenames
 download_dataset >> remove_zip_file_from_download
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> hdfs_put_hubway_data_raw >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_final >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_hiveSQL >> create_HiveTable_hubway_data >> waiting_operator_two
-waiting_operator >> csv_optimize >> waiting_operator_two
-# waiting_operator_two >> upload_to_hive
+waiting_operator >> csv_optimize >> waiting_operator_two >> upload_to_hive_database >> hive_get_avg_trip_duration

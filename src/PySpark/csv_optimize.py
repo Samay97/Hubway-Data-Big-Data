@@ -53,6 +53,53 @@ def get_age(birth_year):
         return 0
 
 
+# is_time_between_0 - is_time_between_3 complete dumb
+# but it works, to get a work around with the scope and not passing normal var in function is_time_between
+def is_time_between_0(begin_time, end_time):    
+    check_time_start = begin_time.replace(hour=0, minute=0, second=0)
+    check_time_end = end_time.replace(hour=5, minute=59, second=59)
+    
+    if ((begin_time >= check_time_start and begin_time <= check_time_end) or
+        (end_time >= check_time_start and end_time <= check_time_end)):
+        return 1
+    elif begin_time <= check_time_start and end_time >= check_time_end:
+        return 1
+    return 0
+
+def is_time_between_1(begin_time, end_time):    
+    check_time_start = begin_time.replace(hour=6, minute=0, second=0)
+    check_time_end = end_time.replace(hour=11, minute=59, second=59)
+    
+    if ((begin_time >= check_time_start and begin_time <= check_time_end) or
+        (end_time >= check_time_start and end_time <= check_time_end)):
+        return 1
+    elif begin_time <= check_time_start and end_time >= check_time_end:
+        return 1
+    return 0
+
+def is_time_between_2(begin_time, end_time):    
+    check_time_start = begin_time.replace(hour=12, minute=0, second=0)
+    check_time_end = end_time.replace(hour=17, minute=59, second=59)
+    
+    if ((begin_time >= check_time_start and begin_time <= check_time_end) or
+        (end_time >= check_time_start and end_time <= check_time_end)):
+        return 1
+    elif begin_time <= check_time_start and end_time >= check_time_end:
+        return 1
+    return 0
+
+def is_time_between_3(begin_time, end_time):    
+    check_time_start = begin_time.replace(hour=18, minute=0, second=0)
+    check_time_end = end_time.replace(hour=23, minute=59, second=59)
+    
+    if ((begin_time >= check_time_start and begin_time <= check_time_end) or
+        (end_time >= check_time_start and end_time <= check_time_end)):
+        return 1
+    elif begin_time <= check_time_start and end_time >= check_time_end:
+        return 1
+    return 0
+
+
 if __name__ == '__main__':
     """
     Main Function
@@ -99,6 +146,12 @@ if __name__ == '__main__':
                 udf_distanceInKmBetweenEarthCoordinates = F.udf(distanceInKmBetweenEarthCoordinates, FloatType()) 
                 udf_get_age = F.udf(get_age, IntegerType())
 
+                # Work around, very bad but it works :D
+                udf_is_time_in_timeslot0 = F.udf(is_time_between_0, IntegerType())
+                udf_is_time_in_timeslot1 = F.udf(is_time_between_1, IntegerType())
+                udf_is_time_in_timeslot2 = F.udf(is_time_between_2, IntegerType())
+                udf_is_time_in_timeslot3 = F.udf(is_time_between_3, IntegerType())
+
                 # add tripdistance
                 test_csv_dataframe = test_csv_dataframe.withColumn(
                     'tripdistance',
@@ -118,19 +171,52 @@ if __name__ == '__main__':
                     )
                 )
 
-                # convert string date to unix timestamp
-                test_csv_dataframe = test_csv_dataframe.withColumn(
-                    'starttime', 
-                    F.unix_timestamp('starttime')
-                )
+                # convert starttime and stoptime to timeslots
 
+                # 0-6
                 test_csv_dataframe = test_csv_dataframe.withColumn(
-                    'stoptime', 
-                    F.unix_timestamp('stoptime')
+                    'timeslot_1', 
+                    udf_is_time_in_timeslot0(
+                        'starttime',
+                        'stoptime'
+                    )
+                )
+                # 6-12
+                test_csv_dataframe = test_csv_dataframe.withColumn(
+                    'timeslot_2', 
+                    udf_is_time_in_timeslot1(
+                        'starttime',
+                        'stoptime'
+                    )
+                )
+                # 12-18
+                test_csv_dataframe = test_csv_dataframe.withColumn(
+                    'timeslot_3', 
+                    udf_is_time_in_timeslot2(
+                        'starttime',
+                        'stoptime'
+                    )
+                )
+                # 18-24
+                test_csv_dataframe = test_csv_dataframe.withColumn(
+                    'timeslot_4', 
+                    udf_is_time_in_timeslot3(
+                        'starttime',
+                        'stoptime'
+                    )
                 )
 
                 # Drop not used colums
-                final_df = test_csv_dataframe.drop('start station latitude', 'start station longitude', 'end station latitude', 'end station longitude', 'usertype', 'birth year')
+                final_df = test_csv_dataframe.drop(
+                    'start station latitude', 
+                    'start station longitude', 
+                    'end station latitude',
+                    'end station longitude',
+                    'usertype',
+                    'birth year',
+                    'starttime',
+                    'stoptime'
+                )
 
                 # Safe back to hdfs
                 final_df.coalesce(1)\

@@ -8,6 +8,7 @@ services:
     container_name: airflow
     volumes:
             - ./src:/home/airflow/airflow/dags/ #mountfiles for development
+            - ./KeyPerformanceIndicators:/home/airflow/excel-files/
     ports:
       - 8080:8080
     networks:
