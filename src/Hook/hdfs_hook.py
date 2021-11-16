@@ -61,7 +61,7 @@ class HdfsHook(BaseHook):
         conn = self.get_conn()
         files = conn.ls(remote_file)
         for file in files:
-            if file.endswith('.csv'):
+            if 'part' in file:
                 out_buf = io.BytesIO()
                 conn.download(file, out_buf)
                 print('Donwload: ' + file)
