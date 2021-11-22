@@ -13,18 +13,18 @@ from airflow.operators.subdag_operator import SubDagOperator
 from config import *
 from Helper.file_helper import collect_all_downloaded_files
 from Operators.download_operator import DownloadOperator
+from Operators.excel_operator import CreateExcelFromCSV
 from Operators.filesystem_operator import (ClearDirectoryOperator,
                                            CreateDirectoryOperator,
                                            RemoveFileOperator)
 from Operators.hdfs_operations import (HdfsBasicMkdirFileOperator,
+                                       HdfsGetCSVFileOperator,
                                        HdfsMkdirFileOperator,
-                                       HdfsPutFileOperator,
-                                       HdfsGetCSVFileOperator)
+                                       HdfsPutFileOperator)
 from Operators.hive_operator import HiveUploadOperator
 from SQL_Commands.create_table import \
     hiveSQL_create_table_hubway_data_optimized
 from SQL_Commands.insert_to_table import hiveSQL_add_partition_hubway_data
-from SQL_Commands.select_commands import hiveSQL_select_AVG_trip_duration
 
 args = {
     'owner': 'airflow'
@@ -155,55 +155,6 @@ create_HiveTable_hubway_data = HiveOperator(
     dag=dag
 )
 
-# def load_subdag(parent_dag_name, child_dag_name, file_names, args):
-#     dag_subdag = DAG(
-#         dag_id='{0}.{1}'.format(parent_dag_name, child_dag_name),
-#         default_args=args,
-#         schedule_interval='0 18 * * *',
-#         start_date=datetime(2021, 11, 1)
-#     )
-#     with dag_subdag:
-#         for i in file_names:
-#             t = DummyOperator(
-#                 task_id='load_subdag_{0}'.format(i),
-#                 dag=dag_subdag,
-#             )
-
-#     return dag_subdag
-
-# load_tasks = SubDagOperator(
-#     task_id="load_tasks",
-#     subdag=load_subdag(
-#         parent_dag_name='Hubway-Data',
-#         child_dag_name="load_tasks",
-#         file_names="{{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}",
-#         args=args
-#     ),
-#     dag=dag
-# )
-
-
-# TODO: Don´t know how to get dynmaic HiveOperators with {{ task_instance.xcom_pull(task_ids='get-downloaded-filenames') }}
-# last_submit = None
-# for x in ['201512', '201506', '201705', '201702', '201703', '201712', '201709', '201710', '201504', '201606', '201708',
-# '201507', '201609', '201508', '201605', '201704', '201505', '201706', '201701', '201601', '201603', '201608', '201510',
-# '201602', '201509', '201707', '201607', '201604', '201502', '201511', '201503', '201610', '201711', '201501', '201611']:
-#     upload_to_hive_database = HiveOperator(
-#         task_id='upload_to_hive_sql_{}'.format(x),
-#         hql=hiveSQL_add_partition_hubway_data + " LOCATION '{}{}/hubway-tripdata.csv'; ".format(remote_path_final, x),
-#         hive_cli_conn_id='beeline',
-#         dag=dag
-#     )
-
-#     if last_submit is not None:
-#         upload_to_hive_database.set_upstream(last_submit)
-#     else:
-#         upload_to_hive_database.set_upstream(waiting_operator_two)
-    
-#     upload_to_hive_database.set_downstream(waiting_operator_three)
-#     last_submit = upload_to_hive_database
-
-
 upload_to_hive_database = HiveUploadOperator(
     task_id='upload_to_hive_database',
     hql=hiveSQL_add_partition_hubway_data,
@@ -249,6 +200,13 @@ clear_local_kpis_dir = ClearDirectoryOperator(
     dag=dag
 )
 
+create_final_excel_kpis = CreateExcelFromCSV(
+    task_id='create_final_excel_kpis',
+    csv_path='{}{}/{}'.format(local_path_kpis, local_kpis_folder, kpis_file_name),
+    excel_path='/home/airflow/excel-files/',
+    dag=dag
+)
+
 create_local_import_dir >> clear_local_import_dir >> download_dataset >> get_downloaded_filenames
 download_dataset >> remove_zip_file_from_download
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> hdfs_put_hubway_data_raw >> waiting_operator
@@ -258,6 +216,6 @@ get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_kpis >> waitin
 waiting_operator >> csv_optimize >> waiting_operator_two
 waiting_operator_two >> calculate_kpis >> waiting_operator_three
 waiting_operator_two >> create_local_kpis_dir >> clear_local_kpis_dir >> waiting_operator_three
-waiting_operator_three >> get_calculated_kpis
-# to be fixed 
-upload_to_hive_database
+waiting_operator_two >> upload_to_hive_database
+waiting_operator_three >> get_calculated_kpis >> create_final_excel_kpis
+
