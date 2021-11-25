@@ -45,13 +45,13 @@ waiting_operator = DummyOperator(
     dag=dag
 )
 
-waiting_operator_two = DummyOperator(
-    task_id='Dummy_Task_Wait_two',
+wait_for_csv_optimize = DummyOperator(
+    task_id='wait_for_csv_optimize',
     dag=dag
 )
 
-waiting_operator_three = DummyOperator(
-    task_id='Dummy_Task_Wait_three',
+wait_for_calculate_kpis = DummyOperator(
+    task_id='wait_for_calculate_kpis',
     dag=dag
 )
 
@@ -211,11 +211,10 @@ create_local_import_dir >> clear_local_import_dir >> download_dataset >> get_dow
 download_dataset >> remove_zip_file_from_download
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_raw >> hdfs_put_hubway_data_raw >> waiting_operator
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_final >> waiting_operator
-get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_hiveSQL >> create_HiveTable_hubway_data >> waiting_operator_two
+get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_hiveSQL >> create_HiveTable_hubway_data >> wait_for_csv_optimize
 get_downloaded_filenames >> create_hdfs_hubway_data_partition_dir_kpis >> waiting_operator
-waiting_operator >> csv_optimize >> waiting_operator_two
-waiting_operator_two >> calculate_kpis >> waiting_operator_three
-waiting_operator_two >> create_local_kpis_dir >> clear_local_kpis_dir >> waiting_operator_three
-waiting_operator_two >> upload_to_hive_database
-waiting_operator_three >> get_calculated_kpis >> create_final_excel_kpis
-
+waiting_operator >> csv_optimize >> wait_for_csv_optimize
+wait_for_csv_optimize >> calculate_kpis >> wait_for_calculate_kpis
+wait_for_csv_optimize >> create_local_kpis_dir >> clear_local_kpis_dir >> wait_for_calculate_kpis
+wait_for_csv_optimize >> upload_to_hive_database
+wait_for_calculate_kpis >> get_calculated_kpis >> create_final_excel_kpis
