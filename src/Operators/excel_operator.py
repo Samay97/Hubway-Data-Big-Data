@@ -48,6 +48,9 @@ header_alignment = Alignment(horizontal='center', vertical='center')
 
 
 class CreateExcelFromCSV(BaseOperator):
+    """
+    Operator for creating excel kpi from kpi csv
+    """
 
     template_fields = ('csv_path', 'excel_path')
     ui_color = '#1F6E43'

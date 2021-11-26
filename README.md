@@ -1,12 +1,13 @@
 # Hubway-Data-Big-Data
-DHBW Projekt für die Vorlesung Big Data mit den Hubway-Daten
+DHBW Projekt für die Vorlesung Big Data mit den Hubway-Daten.
+
+ETL Workflow zu [Kaggle Hubway Data](https://www.kaggle.com/acmeyer/hubway-data)
 
 ## Ausfürhren des DAG´s
 
 In der Konsole ausführen:
 ```
 docker compose build
-
 docker compose up
 ```
 
@@ -21,7 +22,7 @@ Das Terminal mit dem hiveserver2 offen lassen
 
 Im Browoser folgende url aufrufen: http://localhost:8080/admin und den DAG 'Hubway-Data' ausführen
 
-Nach dem Druchlauf des Dag´s liegen die berechneten KPIs in einer Excel Datei in dem `KeyPerformanceIndicators` Ordner.
+### Nach dem Druchlauf des Dag´s liegen die berechneten KPIs (das Ergebnis) in einer Excel Datei in dem `KeyPerformanceIndicators` Ordner auf dem Host.
 
 
 ## Aufbau
@@ -30,7 +31,6 @@ Die Hubway-Daten, werden automatisiert von Kaggle herunterladen. Danach befinden
 Danach speichert PySpark diese optimierten Daten als CSV Dateien wieder im HDFS.
 Darauf werden diese in die HIVE-SQL Tabelle geladen und mit Spark werden die KPIs berechnet.
 Der Airflow-Container lädt daraufhin die KPIs im CSV Format herunter und erstellt eine Excel, die so abgelegt wird, dass das Volume, das in dem Docker-Container Konfiguriert ist, die Excel Datei im Host System des Benutzers ablegt.
-
 
 ### Airflow Tasks
 
@@ -57,6 +57,12 @@ Der Airflow-Container lädt daraufhin die KPIs im CSV Format herunter und erstel
 |wait_for_calculate_kpis            |Ein Dummy Operator der wartet bis die Berechung der KPIs abgeschlossen ist.|
 |get_calculated_kpis                |Der Airflow Container lädt die KPIs im CSV-Format herunter|
 |create_final_excel_kpis            |Erstellt basierend auf der Heruntergeladenen KPIs mit Pandas und openpyxl eine Excel Datei|
+
+### Task Ablauf
+
+![Image Graph 1-2](./assets/graph-1.jpg)
+
+![Image Graph 2-2](./assets/graph-2.jpg)
 
 
 ## Bekannte Probleme
